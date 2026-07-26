@@ -96,7 +96,7 @@ export function DashboardPage() {
                 <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                 <YAxis domain={[0, 100]} />
                 <Tooltip />
-                <Bar dataKey="attendance" fill="#2563eb" />
+                <Bar dataKey="attendance" fill="var(--primary)" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -115,7 +115,7 @@ export function DashboardPage() {
                 <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                 <YAxis />
                 <Tooltip />
-                <Bar dataKey="averageMarks" fill="#16a34a" />
+                <Bar dataKey="averageMarks" fill="var(--accent)" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
