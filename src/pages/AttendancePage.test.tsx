@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AttendancePage } from './AttendancePage'
@@ -15,9 +15,16 @@ vi.mock('@/lib/api', () => ({
   ApiError: class ApiError extends Error {},
 }))
 
+// Fixed to a Monday so `todaysSlots` (which filters on plain JS getDay(), see
+// AttendancePage.tsx's todayDayOfWeek()) deterministically matches slotA/slotB below,
+// regardless of what day the test actually runs on. See #7.
+const FIXED_MONDAY = new Date(2026, 0, 5, 9, 30, 0)
+
 const slotA = {
   id: 'slot-a',
-  dayOfWeek: new Date().getDay() === 0 ? 7 : new Date().getDay(),
+  // Plain getDay() convention (Mon=1..Fri=5), matching todayDayOfWeek() and
+  // activeSection.tsx's computeActiveSlot — no Sunday-to-7 remapping (#7).
+  dayOfWeek: 1,
   startTime: '09:00',
   endTime: '10:00',
   sectionId: 'section-a',
@@ -46,6 +53,10 @@ function renderPage() {
 
 describe('AttendancePage (#150)', () => {
   beforeEach(() => {
+    // Only fake Date — leave setTimeout/setInterval on real timers so Testing Library's
+    // async waitFor/findBy (which poll via real timers) keep working normally.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(FIXED_MONDAY)
     vi.mocked(api.getMyTimetable).mockResolvedValue([slotA, slotB])
     vi.mocked(api.getAttendanceAlerts).mockResolvedValue([])
     vi.mocked(api.getSectionRoster).mockImplementation((slotId: string) =>
@@ -57,6 +68,10 @@ describe('AttendancePage (#150)', () => {
       sectionId: 'section-b',
       records: [],
     })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('only submits the currently selected session roster, not students from a previously viewed session', async () => {
