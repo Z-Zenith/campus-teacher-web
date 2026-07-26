@@ -2,7 +2,15 @@ import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { createAssignment, ApiError, type AssignmentType } from '@/lib/api'
+import {
+  createAssignment,
+  triggerPlagiarismCheck,
+  getPlagiarismReport,
+  isResolvedPlagiarismReport,
+  ApiError,
+  type AssignmentType,
+  type PlagiarismReport,
+} from '@/lib/api'
 
 // TWA-07 — a teacher creates code/quiz/essay/file-upload assignments, specifying type,
 // due date, and submission window. Backend: AssignmentsController.Create (already on main).
@@ -129,6 +137,111 @@ export function AssignmentsPage() {
           </form>
         </CardContent>
       </Card>
+
+      <PlagiarismCheckCard />
     </div>
+  )
+}
+
+// AIS-02 — a teacher checks a single submission for internet plagiarism via Copyleaks.
+// This app has no "list submissions for grading" endpoint yet (AssignmentsController only
+// exposes per-submission routes), so the teacher identifies the submission by id here,
+// same as the subjectId/GUID inputs above — once a submissions list exists elsewhere in
+// the app this card's input can be replaced with a per-row action.
+function PlagiarismCheckCard() {
+  const [submissionId, setSubmissionId] = useState('')
+  const [report, setReport] = useState<PlagiarismReport | null>(null)
+  const [reportError, setReportError] = useState<string | null>(null)
+
+  const triggerMutation = useMutation({
+    mutationFn: triggerPlagiarismCheck,
+    onSuccess: () => {
+      setReportError(null)
+      setReport({ submissionId, status: 'pending' })
+    },
+    onError: (err) => {
+      setReport(null)
+      setReportError(err instanceof ApiError ? `Failed to start plagiarism check: ${err.message || err.status}` : 'Failed to start plagiarism check.')
+    },
+  })
+
+  const reportMutation = useMutation({
+    mutationFn: getPlagiarismReport,
+    onSuccess: (result) => {
+      setReportError(null)
+      setReport(result)
+    },
+    onError: (err) => {
+      setReportError(err instanceof ApiError ? `Failed to load plagiarism report: ${err.message || err.status}` : 'Failed to load plagiarism report.')
+    },
+  })
+
+  const canQuery = Boolean(submissionId.trim()) && !triggerMutation.isPending && !reportMutation.isPending
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Plagiarism check</CardTitle>
+        <CardDescription>
+          AIS-02 — scans a submission against internet sources via Copyleaks. Results shown here are not
+          shared with the submitting student.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <label className="text-sm text-muted-foreground">Submission ID</label>
+        <input
+          className="rounded-md border px-3 py-2 text-sm"
+          placeholder="Submission ID (GUID)"
+          value={submissionId}
+          onChange={(e) => setSubmissionId(e.target.value)}
+        />
+
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            disabled={!canQuery}
+            onClick={() => triggerMutation.mutate(submissionId)}
+          >
+            {triggerMutation.isPending ? 'Starting…' : 'Check for plagiarism'}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!canQuery}
+            onClick={() => reportMutation.mutate(submissionId)}
+          >
+            {reportMutation.isPending ? 'Loading…' : 'View report'}
+          </Button>
+        </div>
+
+        {reportError && <p className="text-sm text-destructive">{reportError}</p>}
+
+        {report && !isResolvedPlagiarismReport(report) && (
+          <p className="text-sm text-muted-foreground">
+            Scan pending — Copyleaks hasn't returned a result yet. Check back shortly.
+          </p>
+        )}
+
+        {report && isResolvedPlagiarismReport(report) && (
+          <div className="rounded-md border p-3 text-sm">
+            <p className="font-medium">{Math.round(report.similarityScore * 100)}% similarity</p>
+            {report.matchedSources.length > 0 && (
+              <ul className="mt-1 list-inside list-disc text-muted-foreground">
+                {report.matchedSources.map((url) => (
+                  <li key={url}>
+                    <a href={url} target="_blank" rel="noreferrer" className="underline">
+                      {url}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-2 text-xs text-muted-foreground">
+              Visible to teachers/admins only — not shown to the submitting student.
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
