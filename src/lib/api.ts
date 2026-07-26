@@ -260,11 +260,42 @@ export function createAssignment(assignment: {
   dueDate: string
   submissionWindowStart: string
   submissionWindowEnd: string
+  typeSpecificSettings?: string | null
 }) {
   return request<AssignmentDto>('/assignments', {
     method: 'POST',
     body: JSON.stringify(assignment),
   })
+}
+
+// Backs the assignment list page — one row per assignment the teacher owns, with a
+// submission count so the list doesn't need a follow-up request per row.
+export interface AssignmentSummaryDto {
+  id: string
+  subjectId: string
+  subjectName: string
+  title: string
+  type: string
+  dueDate: string
+  submissionCount: number
+}
+
+export function getMyAssignments() {
+  return request<AssignmentSummaryDto[]>('/assignments/mine')
+}
+
+// Backs the Submissions tab — the roster cross-referenced against actual submission rows.
+export interface AssignmentSubmissionStatusDto {
+  studentId: string
+  studentName: string
+  status: 'Missing' | 'Late' | 'Submitted'
+  submissionId: string | null
+  submittedAt: string | null
+  isAutosubmitted: boolean
+}
+
+export function getAssignmentSubmissions(assignmentId: string) {
+  return request<AssignmentSubmissionStatusDto[]>(`/assignments/${assignmentId}/submissions`)
 }
 
 // TWA-06 — material upload. Backend: CommunityController.UploadMaterial (already on main).

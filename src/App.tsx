@@ -13,6 +13,7 @@ import { AttendancePage } from '@/pages/AttendancePage'
 import { MarksPage } from '@/pages/MarksPage'
 import { MessagesPage } from '@/pages/MessagesPage'
 import { AssignmentsPage } from '@/pages/AssignmentsPage'
+import { AssignmentDetailPage } from '@/pages/AssignmentDetailPage'
 import { MaterialsPage } from '@/pages/MaterialsPage'
 import { CommunityPage } from '@/pages/CommunityPage'
 import { NotesPage } from '@/pages/NotesPage'
@@ -248,6 +249,16 @@ function App() {
               <RequireAuth>
                 <Shell>
                   <AssignmentsPage />
+                </Shell>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/assignments/:id"
+            element={
+              <RequireAuth>
+                <Shell>
+                  <AssignmentDetailPage />
                 </Shell>
               </RequireAuth>
             }
