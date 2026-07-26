@@ -34,6 +34,32 @@ export function getSectionRoster(timetableSlotId: string) {
   return request<RosterStudentDto[]>(`/timetable/slots/${timetableSlotId}/roster`)
 }
 
+// Sourced from TeacherSectionAssignments (the same table GetSectionPerformanceSummary and
+// MarksController.InternalRoster authorize against), not from TimetableSlots — this is the
+// fix for Dashboard's false-403: a section can appear in a teacher's timetable via a manually
+// patched slot with no corresponding TeacherSectionAssignment.
+export interface AssignedSectionDto {
+  sectionId: string
+  sectionName: string
+}
+
+export function getMySections() {
+  return request<AssignedSectionDto[]>('/timetable/sections/mine')
+}
+
+// Roster scoped by section (not by a single timetable slot, unlike getSectionRoster above) —
+// used by Reports' student picker, Marks' section-scoped roster, and Assignments' Submissions
+// tab. `identifier` is the student's roll number (also their login username).
+export interface SectionRosterStudentDto {
+  studentId: string
+  fullName: string
+  identifier: string
+}
+
+export function getStudentsInSection(sectionId: string) {
+  return request<SectionRosterStudentDto[]>(`/timetable/sections/${sectionId}/roster`)
+}
+
 export type AttendanceStatus = 'Present' | 'Absent' | 'Late'
 
 export interface MarkedAttendanceDto {

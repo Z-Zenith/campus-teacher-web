@@ -9,6 +9,7 @@ import * as api from '@/lib/api'
 // leftover student IDs accumulated while session A's roster was displayed.
 vi.mock('@/lib/api', () => ({
   getMyTimetable: vi.fn(),
+  getMySections: vi.fn(),
   getSectionRoster: vi.fn(),
   getAttendanceAlerts: vi.fn(),
   markAttendance: vi.fn(),
@@ -58,6 +59,10 @@ describe('AttendancePage (#150)', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(FIXED_MONDAY)
     vi.mocked(api.getMyTimetable).mockResolvedValue([slotA, slotB])
+    vi.mocked(api.getMySections).mockResolvedValue([
+      { sectionId: 'section-a', sectionName: 'Section A' },
+      { sectionId: 'section-b', sectionName: 'Section B' },
+    ])
     vi.mocked(api.getAttendanceAlerts).mockResolvedValue([])
     vi.mocked(api.getSectionRoster).mockImplementation((slotId: string) =>
       Promise.resolve(slotId === 'slot-a' ? rosterA : rosterB),
