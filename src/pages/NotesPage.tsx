@@ -4,7 +4,17 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth'
-import { getToken, notesListMine, notesGet, notesSave, notesDelete, notesBacklinks, type NoteSummaryDto } from '@/lib/api'
+import {
+  getToken,
+  notesListMine,
+  notesGet,
+  notesSave,
+  notesDelete,
+  notesBacklinks,
+  searchImages,
+  uploadImage,
+  type NoteSummaryDto,
+} from '@/lib/api'
 
 // TWA-14 — Teacher Web App embeds the Shared Editor Kit rather than implementing its own
 // note editor. Unlike the Student Desktop App (SDA-19), TWA is already React, so this is
@@ -110,6 +120,7 @@ export function NotesPage() {
               }}
               onResolveLink={(toNoteId) => notesGet(toNoteId, user.userId)}
               onListBacklinks={(toNoteId) => notesBacklinks(toNoteId, user.userId)}
+              imageSearch={{ user, enabled: true, onSearch: searchImages, onUploadImage: uploadImage }}
             />
           </div>
         </CardContent>

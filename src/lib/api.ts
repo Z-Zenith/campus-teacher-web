@@ -23,7 +23,14 @@ export type {
 } from '@campus/api-client'
 
 import { request, ApiError } from '@campus/api-client'
-import { extractOutgoingLinks, type SekError } from '@campus/shared-editor-kit'
+import {
+  extractOutgoingLinks,
+  type SekError,
+  type Result,
+  type ImageSearchResponse,
+  type ImageSearchResult,
+  type ImageInsert,
+} from '@campus/shared-editor-kit'
 
 export interface RosterStudentDto {
   studentId: string
@@ -299,6 +306,32 @@ export function createGroupPost(groupId: string, content: string) {
   })
 }
 
+// SDA-04 — whitelist add-request approval queue. Backend: BrowsingController.cs
+// (GET /whitelist/requests, POST /whitelist/requests/{id}/approve), teacher/admin-only.
+export interface WhitelistRequestDto {
+  id: string
+  url: string
+  requestedBy: string
+  status: string
+  reviewedBy: string | null
+}
+
+export function getPendingWhitelistRequests() {
+  return request<WhitelistRequestDto[]>('/whitelist/requests')
+}
+
+export interface ApproveWhitelistRequestResponse {
+  requestId: string
+  status: string
+  site: { id: string; url: string; approvedAt: string }
+}
+
+export function approveWhitelistRequest(id: string) {
+  return request<ApproveWhitelistRequestResponse>(`/whitelist/requests/${id}/approve`, {
+    method: 'POST',
+  })
+}
+
 // DMS-01 / TWA-18 — thin adapters from the shared Direct Messaging package's
 // embedder callbacks (Result<T, DmsError>) onto this app's fetch client
 // (which throws ApiError). DMS owns no persistence or auth of its own; this
@@ -461,5 +494,64 @@ export async function notesBacklinks(id: string, ownerId: string) {
     return { ok: true as const, value: dtos.map((dto) => toSekNote(dto, ownerId)) }
   } catch (err) {
     return { ok: false as const, error: toSekError(err) }
+  }
+}
+
+// SEK-04 — thin adapters from the Shared Editor Kit's ImageSearch (rendered as a child of
+// NotesEditor) embedder callbacks onto this app's fetch client and the Backend API's
+// ImageSearchController. onUploadImage builds the ImageInsert client-side from the search
+// result's own title/width/height/attribution plus the freshly re-hosted embeddedUrl — the
+// backend's /image-search/save only needs to fetch+store bytes, not round-trip metadata it
+// already returned from /image-search.
+interface BackendImageSearchResultDto {
+  id: string
+  title: string
+  sourceUrl: string
+  thumbnailUrl: string
+  width: number
+  height: number
+  attribution: string
+}
+
+interface BackendImageSearchResponseDto {
+  query: string
+  results: BackendImageSearchResultDto[]
+  degraded: boolean
+}
+
+interface BackendSaveImageResponseDto {
+  url: string
+}
+
+export async function searchImages(query: string): Promise<Result<ImageSearchResponse, SekError>> {
+  try {
+    const dto = await request<BackendImageSearchResponseDto>('/image-search', {
+      method: 'POST',
+      body: JSON.stringify({ query }),
+    })
+    return { ok: true, value: dto }
+  } catch (err) {
+    return { ok: false, error: toSekError(err) }
+  }
+}
+
+export async function uploadImage(result: ImageSearchResult): Promise<Result<ImageInsert, SekError>> {
+  try {
+    const dto = await request<BackendSaveImageResponseDto>('/image-search/save', {
+      method: 'POST',
+      body: JSON.stringify({ sourceUrl: result.sourceUrl }),
+    })
+    return {
+      ok: true,
+      value: {
+        embeddedUrl: dto.url,
+        altText: result.title,
+        width: result.width,
+        height: result.height,
+        attribution: result.attribution,
+      },
+    }
+  } catch (err) {
+    return { ok: false, error: toSekError(err) }
   }
 }
