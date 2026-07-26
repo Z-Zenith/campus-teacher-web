@@ -463,3 +463,27 @@ export async function notesBacklinks(id: string, ownerId: string) {
     return { ok: false as const, error: toSekError(err) }
   }
 }
+
+// AIS-05 — AI-content detection via Pangram. Backend: AssignmentsController.AiDetection
+// (already on main). Unlike AIS-02's Copyleaks flow, Pangram's classifier call is
+// synchronous, so this trigger returns the persisted report directly — no separate
+// pending/GET step. Never shown to the submitting student (AIS-05 acceptance criterion)
+// — enforced server-side by the same teacher/Admin gate as AIS-02/AIS-03, this UI only
+// surfaces what the backend already restricts. Per AIS-05's acceptance criteria and the
+// architecture doc's documented fairness risk (a real, significant false-positive bias
+// against non-native English writers), the score is presented as one signal among
+// several — never a standalone misconduct verdict — see the disclaimer copy where this
+// is rendered in AssignmentsPage.tsx.
+export interface AiDetectionReportDto {
+  id: string
+  submissionId: string
+  aiLikelihoodScore: number
+  pangramReportId: string | null
+  checkedAt: string
+}
+
+export function triggerAiDetection(submissionId: string) {
+  return request<AiDetectionReportDto>(`/submissions/${submissionId}/ai-detection`, {
+    method: 'POST',
+  })
+}
