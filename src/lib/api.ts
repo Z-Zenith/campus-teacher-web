@@ -201,9 +201,10 @@ export interface InternalMarksRosterEntry {
   publishedAt: string | null
 }
 
-export function getInternalMarksRoster(subjectId: string, assignmentId?: string) {
+export function getInternalMarksRoster(subjectId: string, assignmentId?: string, sectionId?: string) {
   const params = new URLSearchParams({ subjectId })
   if (assignmentId) params.set('assignmentId', assignmentId)
+  if (sectionId) params.set('sectionId', sectionId)
   return request<InternalMarksRosterEntry[]>(`/marks/internal/roster?${params.toString()}`)
 }
 
