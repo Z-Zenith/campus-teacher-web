@@ -22,7 +22,7 @@ export type {
   TeacherReportDto,
 } from '@campus/api-client'
 
-import { request, ApiError } from '@campus/api-client'
+import { request, ApiError, getToken } from '@campus/api-client'
 import { extractOutgoingLinks, type SekError } from '@campus/shared-editor-kit'
 
 export interface RosterStudentDto {
@@ -282,6 +282,51 @@ export function uploadMaterial(material: { title: string; fileUrl: string; subje
   return request<MaterialDto>('/materials', {
     method: 'POST',
     body: JSON.stringify(material),
+  })
+}
+
+// Real file upload (replacing the URL-paste flow above) — backend: CommunityController.
+// UploadMaterialFile, streaming to Cloudflare R2. Uses XMLHttpRequest directly instead of the
+// shared `request()` helper: fetch has no upload-progress event, and request() would also
+// force a `Content-Type: application/json` header that must NOT be set on a FormData body —
+// the browser needs to set its own `multipart/form-data; boundary=...` value.
+export function uploadMaterialFile(
+  material: { title: string; subjectId: string | null; groupId: string | null; file: File },
+  onProgress?: (percent: number) => void,
+) {
+  return new Promise<MaterialDto>((resolve, reject) => {
+    const formData = new FormData()
+    formData.append('title', material.title)
+    if (material.subjectId) formData.append('subjectId', material.subjectId)
+    if (material.groupId) formData.append('groupId', material.groupId)
+    formData.append('file', material.file)
+
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', '/api/v1/materials/upload')
+    const token = getToken()
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+
+    xhr.upload.onprogress = (e) => {
+      if (onProgress && e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100))
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(JSON.parse(xhr.responseText) as MaterialDto)
+        return
+      }
+      let message = xhr.statusText
+      try {
+        const parsed = JSON.parse(xhr.responseText)
+        if (typeof parsed?.message === 'string' && parsed.message) message = parsed.message
+      } catch {
+        // response body wasn't JSON — fall back to statusText
+      }
+      reject(new ApiError(xhr.status, message))
+    }
+    xhr.onerror = () => reject(new ApiError(0, 'Network error during upload.'))
+
+    xhr.send(formData)
   })
 }
 
