@@ -14,6 +14,7 @@ import { MarksPage } from '@/pages/MarksPage'
 import { MessagesPage } from '@/pages/MessagesPage'
 import { AssignmentsPage } from '@/pages/AssignmentsPage'
 import { AssignmentDetailPage } from '@/pages/AssignmentDetailPage'
+import { StudentPerformancePage } from '@/pages/StudentPerformancePage'
 import { MaterialsPage } from '@/pages/MaterialsPage'
 import { CommunityPage } from '@/pages/CommunityPage'
 import { NotesPage } from '@/pages/NotesPage'
@@ -81,7 +82,10 @@ const NAV_GROUPS: { label: string; links: { to: string; label: string }[] }[] = 
   },
   {
     label: 'Students',
-    links: [{ to: '/reports', label: 'Report' }],
+    links: [
+      { to: '/reports', label: 'Report' },
+      { to: '/students/performance', label: 'Performance' },
+    ],
   },
   {
     label: 'Community',
@@ -199,6 +203,16 @@ function App() {
               <RequireAuth>
                 <Shell>
                   <ReportsPage />
+                </Shell>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/students/performance"
+            element={
+              <RequireAuth>
+                <Shell>
+                  <StudentPerformancePage />
                 </Shell>
               </RequireAuth>
             }

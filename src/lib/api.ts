@@ -313,6 +313,38 @@ export function getPlagiarismReport(submissionId: string) {
   return request<PlagiarismReportDto>(`/submissions/${submissionId}/plagiarism-report`)
 }
 
+// Per-student performance view (new TWA feature, backend: UsersController.GetProfile) —
+// scoped server-side to a teacher's own students (TeacherSectionAssignments +
+// SectionEnrollments), not the college-wide view_all_student_performance grant. Remarks/
+// browsing-history/suspicious-flags stay empty for a teacher caller (gated behind the more
+// sensitive view_all_student_records permission, not extended here).
+export interface InternalMarkDto {
+  subjectId: string
+  subjectName: string
+  marks: number
+  publishedAt: string | null
+}
+
+export interface ExternalMarkDto {
+  subjectId: string
+  subjectName: string
+  grade: string
+  approvedAt: string | null
+}
+
+export interface StudentRecordDto {
+  id: string
+  fullName: string
+  identifier: string
+  accountType: string
+  internalMarks: InternalMarkDto[]
+  externalMarks: ExternalMarkDto[]
+}
+
+export function getStudentProfile(studentId: string) {
+  return request<StudentRecordDto>(`/users/${studentId}/profile`)
+}
+
 // TWA-06 — material upload. Backend: CommunityController.UploadMaterial (already on main).
 export interface MaterialDto {
   id: string
