@@ -22,7 +22,7 @@ export type {
   TeacherReportDto,
 } from '@campus/api-client'
 
-import { request, ApiError, getToken } from '@campus/api-client'
+import { request, ApiError, getToken, type EventDto } from '@campus/api-client'
 import { extractOutgoingLinks, type SekError } from '@campus/shared-editor-kit'
 
 export interface RosterStudentDto {
@@ -343,6 +343,12 @@ export interface StudentRecordDto {
 
 export function getStudentProfile(studentId: string) {
   return request<StudentRecordDto>(`/users/${studentId}/profile`)
+}
+
+// Teacher-facing calendar/agenda view (no feature ID — TWA-15 only covers creation).
+// Backend: CalendarController.MyEvents, every event in the caller's own college.
+export function getMyEvents() {
+  return request<EventDto[]>('/events/mine')
 }
 
 // TWA-06 — material upload. Backend: CommunityController.UploadMaterial (already on main).
