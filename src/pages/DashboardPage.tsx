@@ -1,8 +1,11 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { getMyTimetable, getSectionPerformanceSummary } from '@/lib/api'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { getSectionPerformanceSummary, ApiError } from '@/lib/api'
 import { useActiveSection } from '@/lib/activeSection'
 
 // Re-fetched on this interval so the dashboard reflects marks/attendance no older than
@@ -10,26 +13,23 @@ import { useActiveSection } from '@/lib/activeSection'
 const REFRESH_INTERVAL_MS = 30_000
 
 export function DashboardPage() {
-  const { sectionId: autoSectionId } = useActiveSection()
+  const {
+    sectionId: autoSectionId,
+    assignedSections,
+    isLoading: sectionsLoading,
+  } = useActiveSection()
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null)
 
-  const timetable = useQuery({ queryKey: ['timetable', 'mine'], queryFn: getMyTimetable })
-
-  const taughtSections = useMemo(() => {
-    const bySectionId = new Map<string, string>()
-    for (const slot of timetable.data ?? []) {
-      bySectionId.set(slot.sectionId, slot.sectionName)
-    }
-    return Array.from(bySectionId, ([sectionId, sectionName]) => ({ sectionId, sectionName }))
-  }, [timetable.data])
-
-  // Defaults to the teacher's currently-scheduled section (TWA-01) once timetable data
+  // Defaults to the teacher's currently-scheduled section (TWA-01) once assignedSections
   // arrives, but the teacher can still pick a different taught section from the dropdown.
+  // assignedSections is sourced from TeacherSectionAssignments (via useActiveSection), the
+  // same table the performance-summary endpoint authorizes against — this is what fixes the
+  // false-403 that could happen when the section list was derived from TimetableSlots instead.
   useEffect(() => {
-    if (!selectedSectionId && (autoSectionId || taughtSections.length > 0)) {
-      setSelectedSectionId(autoSectionId ?? taughtSections[0].sectionId)
+    if (!selectedSectionId && (autoSectionId || assignedSections.length > 0)) {
+      setSelectedSectionId(autoSectionId ?? assignedSections[0].sectionId)
     }
-  }, [autoSectionId, taughtSections, selectedSectionId])
+  }, [autoSectionId, assignedSections, selectedSectionId])
 
   const summary = useQuery({
     queryKey: ['timetable', 'sections', selectedSectionId, 'performance-summary'],
@@ -37,6 +37,8 @@ export function DashboardPage() {
     enabled: !!selectedSectionId,
     refetchInterval: REFRESH_INTERVAL_MS,
   })
+
+  const selectedSectionName = assignedSections.find((s) => s.sectionId === selectedSectionId)?.sectionName
 
   const marksChartData = (summary.data?.marksBySubject ?? []).map((s) => ({
     name: s.subjectName,
@@ -56,22 +58,52 @@ export function DashboardPage() {
           <CardDescription>Attendance and marks for the selected section (TWA-04).</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          {taughtSections.length > 0 && (
-            <select
-              className="w-fit rounded-md border px-3 py-2 text-sm"
-              value={selectedSectionId ?? ''}
-              onChange={(e) => setSelectedSectionId(e.target.value)}
-            >
-              {taughtSections.map((section) => (
-                <option key={section.sectionId} value={section.sectionId}>
-                  {section.sectionName}
-                </option>
-              ))}
-            </select>
+          {sectionsLoading && <Skeleton className="h-9 w-48" />}
+
+          {!sectionsLoading && assignedSections.length === 0 && (
+            <Alert>
+              <AlertTitle>No sections scheduled yet</AlertTitle>
+              <AlertDescription>Ask Admin to publish your timetable — the dashboard will populate once a section is assigned.</AlertDescription>
+            </Alert>
           )}
 
-          {summary.isLoading && <p>Loading…</p>}
-          {summary.isError && <p className="text-destructive">Could not load performance summary.</p>}
+          {!sectionsLoading && assignedSections.length > 0 && (
+            <Select value={selectedSectionId ?? ''} onValueChange={setSelectedSectionId}>
+              <SelectTrigger className="w-fit">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {assignedSections.map((section) => (
+                  <SelectItem key={section.sectionId} value={section.sectionId}>
+                    {section.sectionName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {summary.isLoading && (
+            <div className="flex flex-col gap-2">
+              <Skeleton className="h-6 w-64" />
+              <Skeleton className="h-6 w-48" />
+            </div>
+          )}
+
+          {summary.isError && (
+            <Alert variant="destructive">
+              {summary.error instanceof ApiError && summary.error.status === 403 ? (
+                <>
+                  <AlertTitle>Assignment mismatch</AlertTitle>
+                  <AlertDescription>
+                    You're scheduled to teach {selectedSectionName ?? 'this section'} but aren't recorded as an
+                    assigned teacher for it — ask Admin to reconcile the assignment.
+                  </AlertDescription>
+                </>
+              ) : (
+                <AlertDescription>Could not load performance summary.</AlertDescription>
+              )}
+            </Alert>
+          )}
 
           {summary.data && (
             <p className="text-sm text-muted-foreground">

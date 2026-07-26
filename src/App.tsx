@@ -1,5 +1,6 @@
-import { Navigate, Route, Routes, Link } from 'react-router-dom'
+import { Navigate, Route, Routes, NavLink } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { Toaster } from '@/components/ui/sonner'
 import { AuthProvider, useAuth } from '@/lib/auth'
 import { ActiveSectionProvider, useActiveSection } from '@/lib/activeSection'
 import { LoginPage } from '@/pages/LoginPage'
@@ -12,6 +13,8 @@ import { AttendancePage } from '@/pages/AttendancePage'
 import { MarksPage } from '@/pages/MarksPage'
 import { MessagesPage } from '@/pages/MessagesPage'
 import { AssignmentsPage } from '@/pages/AssignmentsPage'
+import { AssignmentDetailPage } from '@/pages/AssignmentDetailPage'
+import { StudentPerformancePage } from '@/pages/StudentPerformancePage'
 import { MaterialsPage } from '@/pages/MaterialsPage'
 import { CommunityPage } from '@/pages/CommunityPage'
 import { NotesPage } from '@/pages/NotesPage'
@@ -56,25 +59,75 @@ function SectionSwitcher() {
   )
 }
 
+// Groups mirror the architecture doc's Section 8b component clusters (Auth/Dashboard,
+// Attendance & Marks, Materials & Assignments, Community, Calendar & Events, Ops & Feedback)
+// instead of inventing new IA — this replaces the previous flat list of 13 ungrouped links.
+const NAV_GROUPS: { label: string; links: { to: string; label: string }[] }[] = [
+  {
+    label: 'Schedule',
+    links: [
+      { to: '/timetable', label: 'Timetable' },
+      { to: '/attendance', label: 'Attendance' },
+      { to: '/events', label: 'Events' },
+    ],
+  },
+  {
+    label: 'Academics',
+    links: [
+      { to: '/marks', label: 'Marks' },
+      { to: '/external-marks', label: 'External Marks' },
+      { to: '/approve-marks', label: 'Approve Marks' },
+      { to: '/assignments', label: 'Assignments' },
+    ],
+  },
+  {
+    label: 'Students',
+    links: [
+      { to: '/reports', label: 'Report' },
+      { to: '/students/performance', label: 'Performance' },
+    ],
+  },
+  {
+    label: 'Community',
+    links: [
+      { to: '/community', label: 'Community' },
+      { to: '/materials', label: 'Materials' },
+    ],
+  },
+  {
+    label: 'Messaging',
+    links: [
+      { to: '/messages', label: 'Messages' },
+      { to: '/notes', label: 'Notes' },
+    ],
+  },
+]
+
+function navLinkClassName({ isActive }: { isActive: boolean }) {
+  return isActive ? 'text-foreground' : 'text-muted-foreground transition-colors hover:text-foreground'
+}
+
 function Shell({ children }: { children: React.ReactNode }) {
   const { fullName, setSession } = useAuth()
   return (
     <div className="min-h-svh">
-      <nav className="flex items-center justify-between border-b px-8 py-4">
-        <div className="flex gap-6 text-sm font-medium">
-          <Link to="/dashboard">Dashboard</Link>
-          <Link to="/timetable">Timetable</Link>
-          <Link to="/attendance">Attendance</Link>
-          <Link to="/events">Events</Link>
-          <Link to="/reports">Report</Link>
-          <Link to="/external-marks">External Marks</Link>
-          <Link to="/marks">Marks</Link>
-          <Link to="/approve-marks">Approve Marks</Link>
-          <Link to="/messages">Messages</Link>
-          <Link to="/assignments">Assignments</Link>
-          <Link to="/materials">Materials</Link>
-          <Link to="/community">Community</Link>
-          <Link to="/notes">Notes</Link>
+      <nav className="flex flex-wrap items-center justify-between gap-y-2 border-b px-8 py-4">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm font-medium">
+          <NavLink to="/dashboard" className={navLinkClassName}>
+            Dashboard
+          </NavLink>
+          {NAV_GROUPS.map((group) => (
+            <div key={group.label} className="flex items-center gap-4 border-l pl-6">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/60">
+                {group.label}
+              </span>
+              {group.links.map((link) => (
+                <NavLink key={link.to} to={link.to} className={navLinkClassName}>
+                  {link.label}
+                </NavLink>
+              ))}
+            </div>
+          ))}
         </div>
         <div className="flex items-center gap-4">
           <SectionSwitcher />
@@ -101,6 +154,7 @@ function App() {
   return (
     <AuthProvider>
       <ActiveSectionProvider>
+        <Toaster />
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route
@@ -154,6 +208,16 @@ function App() {
             }
           />
           <Route
+            path="/students/performance"
+            element={
+              <RequireAuth>
+                <Shell>
+                  <StudentPerformancePage />
+                </Shell>
+              </RequireAuth>
+            }
+          />
+          <Route
             path="/external-marks"
             element={
               <RequireAuth>
@@ -199,6 +263,16 @@ function App() {
               <RequireAuth>
                 <Shell>
                   <AssignmentsPage />
+                </Shell>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/assignments/:id"
+            element={
+              <RequireAuth>
+                <Shell>
+                  <AssignmentDetailPage />
                 </Shell>
               </RequireAuth>
             }

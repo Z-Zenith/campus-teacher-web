@@ -22,7 +22,7 @@ export type {
   TeacherReportDto,
 } from '@campus/api-client'
 
-import { request, ApiError } from '@campus/api-client'
+import { request, ApiError, getToken, type EventDto } from '@campus/api-client'
 import { extractOutgoingLinks, type SekError } from '@campus/shared-editor-kit'
 
 export interface RosterStudentDto {
@@ -32,6 +32,32 @@ export interface RosterStudentDto {
 
 export function getSectionRoster(timetableSlotId: string) {
   return request<RosterStudentDto[]>(`/timetable/slots/${timetableSlotId}/roster`)
+}
+
+// Sourced from TeacherSectionAssignments (the same table GetSectionPerformanceSummary and
+// MarksController.InternalRoster authorize against), not from TimetableSlots — this is the
+// fix for Dashboard's false-403: a section can appear in a teacher's timetable via a manually
+// patched slot with no corresponding TeacherSectionAssignment.
+export interface AssignedSectionDto {
+  sectionId: string
+  sectionName: string
+}
+
+export function getMySections() {
+  return request<AssignedSectionDto[]>('/timetable/sections/mine')
+}
+
+// Roster scoped by section (not by a single timetable slot, unlike getSectionRoster above) —
+// used by Reports' student picker, Marks' section-scoped roster, and Assignments' Submissions
+// tab. `identifier` is the student's roll number (also their login username).
+export interface SectionRosterStudentDto {
+  studentId: string
+  fullName: string
+  identifier: string
+}
+
+export function getStudentsInSection(sectionId: string) {
+  return request<SectionRosterStudentDto[]>(`/timetable/sections/${sectionId}/roster`)
 }
 
 export type AttendanceStatus = 'Present' | 'Absent' | 'Late'
@@ -175,9 +201,10 @@ export interface InternalMarksRosterEntry {
   publishedAt: string | null
 }
 
-export function getInternalMarksRoster(subjectId: string, assignmentId?: string) {
+export function getInternalMarksRoster(subjectId: string, assignmentId?: string, sectionId?: string) {
   const params = new URLSearchParams({ subjectId })
   if (assignmentId) params.set('assignmentId', assignmentId)
+  if (sectionId) params.set('sectionId', sectionId)
   return request<InternalMarksRosterEntry[]>(`/marks/internal/roster?${params.toString()}`)
 }
 
@@ -233,11 +260,95 @@ export function createAssignment(assignment: {
   dueDate: string
   submissionWindowStart: string
   submissionWindowEnd: string
+  typeSpecificSettings?: string | null
 }) {
   return request<AssignmentDto>('/assignments', {
     method: 'POST',
     body: JSON.stringify(assignment),
   })
+}
+
+// Backs the assignment list page — one row per assignment the teacher owns, with a
+// submission count so the list doesn't need a follow-up request per row.
+export interface AssignmentSummaryDto {
+  id: string
+  subjectId: string
+  subjectName: string
+  title: string
+  type: string
+  dueDate: string
+  submissionCount: number
+}
+
+export function getMyAssignments() {
+  return request<AssignmentSummaryDto[]>('/assignments/mine')
+}
+
+// Backs the Submissions tab — the roster cross-referenced against actual submission rows.
+export interface AssignmentSubmissionStatusDto {
+  studentId: string
+  studentName: string
+  status: 'Missing' | 'Late' | 'Submitted'
+  submissionId: string | null
+  submittedAt: string | null
+  isAutosubmitted: boolean
+}
+
+export function getAssignmentSubmissions(assignmentId: string) {
+  return request<AssignmentSubmissionStatusDto[]>(`/assignments/${assignmentId}/submissions`)
+}
+
+// AIS-02 — internet-plagiarism similarity score, now triggered automatically at submission
+// time (not manually by the teacher). Copyleaks scans asynchronously, so the shape returned
+// here is either "pending" (no report yet) or the persisted report once the webhook lands.
+export interface PlagiarismReportDto {
+  submissionId: string
+  status?: string
+  similarityScore?: number
+  matchedSources?: string[]
+  checkedAt?: string
+}
+
+export function getPlagiarismReport(submissionId: string) {
+  return request<PlagiarismReportDto>(`/submissions/${submissionId}/plagiarism-report`)
+}
+
+// Per-student performance view (new TWA feature, backend: UsersController.GetProfile) —
+// scoped server-side to a teacher's own students (TeacherSectionAssignments +
+// SectionEnrollments), not the college-wide view_all_student_performance grant. Remarks/
+// browsing-history/suspicious-flags stay empty for a teacher caller (gated behind the more
+// sensitive view_all_student_records permission, not extended here).
+export interface InternalMarkDto {
+  subjectId: string
+  subjectName: string
+  marks: number
+  publishedAt: string | null
+}
+
+export interface ExternalMarkDto {
+  subjectId: string
+  subjectName: string
+  grade: string
+  approvedAt: string | null
+}
+
+export interface StudentRecordDto {
+  id: string
+  fullName: string
+  identifier: string
+  accountType: string
+  internalMarks: InternalMarkDto[]
+  externalMarks: ExternalMarkDto[]
+}
+
+export function getStudentProfile(studentId: string) {
+  return request<StudentRecordDto>(`/users/${studentId}/profile`)
+}
+
+// Teacher-facing calendar/agenda view (no feature ID — TWA-15 only covers creation).
+// Backend: CalendarController.MyEvents, every event in the caller's own college.
+export function getMyEvents() {
+  return request<EventDto[]>('/events/mine')
 }
 
 // TWA-06 — material upload. Backend: CommunityController.UploadMaterial (already on main).
@@ -255,6 +366,51 @@ export function uploadMaterial(material: { title: string; fileUrl: string; subje
   return request<MaterialDto>('/materials', {
     method: 'POST',
     body: JSON.stringify(material),
+  })
+}
+
+// Real file upload (replacing the URL-paste flow above) — backend: CommunityController.
+// UploadMaterialFile, streaming to Cloudflare R2. Uses XMLHttpRequest directly instead of the
+// shared `request()` helper: fetch has no upload-progress event, and request() would also
+// force a `Content-Type: application/json` header that must NOT be set on a FormData body —
+// the browser needs to set its own `multipart/form-data; boundary=...` value.
+export function uploadMaterialFile(
+  material: { title: string; subjectId: string | null; groupId: string | null; file: File },
+  onProgress?: (percent: number) => void,
+) {
+  return new Promise<MaterialDto>((resolve, reject) => {
+    const formData = new FormData()
+    formData.append('title', material.title)
+    if (material.subjectId) formData.append('subjectId', material.subjectId)
+    if (material.groupId) formData.append('groupId', material.groupId)
+    formData.append('file', material.file)
+
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', '/api/v1/materials/upload')
+    const token = getToken()
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+
+    xhr.upload.onprogress = (e) => {
+      if (onProgress && e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100))
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(JSON.parse(xhr.responseText) as MaterialDto)
+        return
+      }
+      let message = xhr.statusText
+      try {
+        const parsed = JSON.parse(xhr.responseText)
+        if (typeof parsed?.message === 'string' && parsed.message) message = parsed.message
+      } catch {
+        // response body wasn't JSON — fall back to statusText
+      }
+      reject(new ApiError(xhr.status, message))
+    }
+    xhr.onerror = () => reject(new ApiError(0, 'Network error during upload.'))
+
+    xhr.send(formData)
   })
 }
 

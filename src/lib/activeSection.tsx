@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { getMyTimetable, type TimetableSlotDto } from './api'
+import { getMyTimetable, getMySections, type TimetableSlotDto } from './api'
 import { useAuth } from './auth'
 
 // How often we re-evaluate "now" against the timetable. Keeps the selection live across
@@ -45,15 +45,6 @@ export interface AssignedSection {
   sectionName: string
 }
 
-/** Distinct sections appearing anywhere in the teacher's timetable (TWA-02: switch target list). */
-function computeAssignedSections(slots: TimetableSlotDto[]): AssignedSection[] {
-  const bySectionId = new Map<string, string>()
-  for (const slot of slots) {
-    bySectionId.set(slot.sectionId, slot.sectionName)
-  }
-  return Array.from(bySectionId, ([sectionId, sectionName]) => ({ sectionId, sectionName }))
-}
-
 interface ActiveSectionState {
   /** The full timetable slot currently in session, or null if the teacher isn't in class right now. */
   activeSlot: TimetableSlotDto | null
@@ -95,14 +86,25 @@ export function ActiveSectionProvider({ children }: { children: ReactNode }) {
     enabled: !!token,
   })
 
+  // Sourced from TeacherSectionAssignments, not TimetableSlots — this is the authorization
+  // source GetSectionPerformanceSummary/MarksController.InternalRoster actually check, so it's
+  // the correct switcher list. A section can appear on the timetable (via a manually-patched
+  // slot) without a matching TeacherSectionAssignment, which previously meant the switcher
+  // could offer a section that then 403s downstream — the false-403 bug this endpoint fixes.
+  const mySections = useQuery({
+    queryKey: ['timetable', 'sections', 'mine'],
+    queryFn: getMySections,
+    enabled: !!token,
+  })
+
   const activeSlot = useMemo(
     () => (timetable.data ? computeActiveSlot(timetable.data, now) : null),
     [timetable.data, now],
   )
 
-  const assignedSections = useMemo(
-    () => (timetable.data ? computeAssignedSections(timetable.data) : []),
-    [timetable.data],
+  const assignedSections: AssignedSection[] = useMemo(
+    () => mySections.data?.map((s) => ({ sectionId: s.sectionId, sectionName: s.sectionName })) ?? [],
+    [mySections.data],
   )
 
   const manualSection = manualSectionId
@@ -120,8 +122,8 @@ export function ActiveSectionProvider({ children }: { children: ReactNode }) {
     assignedSections,
     selectSection: setManualSectionId,
     clearManualSelection: () => setManualSectionId(null),
-    isLoading: timetable.isLoading,
-    isError: timetable.isError,
+    isLoading: timetable.isLoading || mySections.isLoading,
+    isError: timetable.isError || mySections.isError,
   }
 
   return <ActiveSectionContext.Provider value={value}>{children}</ActiveSectionContext.Provider>
