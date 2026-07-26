@@ -298,6 +298,21 @@ export function getAssignmentSubmissions(assignmentId: string) {
   return request<AssignmentSubmissionStatusDto[]>(`/assignments/${assignmentId}/submissions`)
 }
 
+// AIS-02 — internet-plagiarism similarity score, now triggered automatically at submission
+// time (not manually by the teacher). Copyleaks scans asynchronously, so the shape returned
+// here is either "pending" (no report yet) or the persisted report once the webhook lands.
+export interface PlagiarismReportDto {
+  submissionId: string
+  status?: string
+  similarityScore?: number
+  matchedSources?: string[]
+  checkedAt?: string
+}
+
+export function getPlagiarismReport(submissionId: string) {
+  return request<PlagiarismReportDto>(`/submissions/${submissionId}/plagiarism-report`)
+}
+
 // TWA-06 — material upload. Backend: CommunityController.UploadMaterial (already on main).
 export interface MaterialDto {
   id: string

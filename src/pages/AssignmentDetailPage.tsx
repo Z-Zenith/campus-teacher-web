@@ -14,8 +14,10 @@ import {
   getAssignmentSubmissions,
   getInternalMarksRoster,
   submitInternalMark,
+  getPlagiarismReport,
   ApiError,
   type InternalMarksRosterEntry,
+  type AssignmentSubmissionStatusDto,
 } from '@/lib/api'
 import { reportApiError } from '@/lib/errors'
 import { useState } from 'react'
@@ -141,7 +143,11 @@ export function AssignmentDetailPage() {
         </TabsContent>
 
         <TabsContent value="grading">
-          <GradingTab assignmentId={assignment.id} subjectId={assignment.subjectId} />
+          <GradingTab
+            assignmentId={assignment.id}
+            subjectId={assignment.subjectId}
+            submissions={submissionsQuery.data ?? []}
+          />
         </TabsContent>
       </Tabs>
     </div>
@@ -151,7 +157,17 @@ export function AssignmentDetailPage() {
 // Reuses the same internal-marks roster/submit endpoints MarksPage (TWA-16) uses, scoped to
 // this one assignment via assignmentId — "grading" an assignment submission is entering its
 // internal mark, not a separate concept with its own storage.
-function GradingTab({ assignmentId, subjectId }: { assignmentId: string; subjectId: string }) {
+function GradingTab({
+  assignmentId,
+  subjectId,
+  submissions,
+}: {
+  assignmentId: string
+  subjectId: string
+  submissions: AssignmentSubmissionStatusDto[]
+}) {
+  const submissionIdByStudent = new Map(submissions.map((s) => [s.studentId, s.submissionId]))
+
   const queryClient = useQueryClient()
   const [draftMarks, setDraftMarks] = useState<Record<string, string>>({})
 
@@ -222,9 +238,50 @@ function GradingTab({ assignmentId, subjectId }: { assignmentId: string; subject
                 Publish
               </Button>
             </div>
+            {submissionIdByStudent.get(entry.studentId) && (
+              <SubmissionSignals submissionId={submissionIdByStudent.get(entry.studentId)!} />
+            )}
           </div>
         ))}
       </CardContent>
     </Card>
+  )
+}
+
+// AIS-02/AIS-05 signals, co-located with the submission (not a separate floating "AI
+// Insights" panel) per the architecture doc's AIS-05 acceptance criterion: the score must be
+// presented "as one signal alongside submission history, never as a standalone misconduct
+// verdict." Deliberately avoids a color-coded pass/fail badge or any ranking/sort-by-
+// suspicion affordance — either would itself be the standalone-verdict pattern the AC
+// prohibits. The false-positive caveat (documented risk against non-native English writers,
+// architecture doc Section 5) is always-visible text, not a tooltip, so it can't be missed
+// on a hover-less/touch device.
+function SubmissionSignals({ submissionId }: { submissionId: string }) {
+  const report = useQuery({
+    queryKey: ['submissions', submissionId, 'plagiarism-report'],
+    queryFn: () => getPlagiarismReport(submissionId),
+  })
+
+  return (
+    <div className="rounded-md border bg-muted/30 p-3 text-xs">
+      <p className="font-medium text-muted-foreground">Submission signals</p>
+      <div className="mt-1 flex flex-col gap-1">
+        <p>
+          <span className="text-muted-foreground">Internet plagiarism (AIS-02):</span>{' '}
+          {report.isLoading && 'Checking…'}
+          {report.data && report.data.similarityScore === undefined && 'Pending — Copyleaks scan not yet complete.'}
+          {report.data?.similarityScore !== undefined && `${report.data.similarityScore}% similarity to internet sources`}
+        </p>
+        <p>
+          <span className="text-muted-foreground">AI-generated content likelihood (AIS-05):</span> Not available in
+          this deployment.
+        </p>
+      </div>
+      <p className="mt-2 text-muted-foreground">
+        These signals are one input among several (submission history, revision count) — never treat either score
+        alone as proof of misconduct. AI-content detectors have a documented false-positive bias against non-native
+        English writers.
+      </p>
+    </div>
   )
 }
