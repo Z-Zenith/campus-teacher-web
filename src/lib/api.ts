@@ -463,3 +463,49 @@ export async function notesBacklinks(id: string, ownerId: string) {
     return { ok: false as const, error: toSekError(err) }
   }
 }
+
+// AIS-02 — internet plagiarism check via Copyleaks. Backend:
+// AssignmentsController.RequestPlagiarismCheck / PlagiarismReport (already on main).
+// Copyleaks scans asynchronously: the trigger call only accepts the request (202, scan
+// queued) — the actual score arrives later via Copyleaks' webhook, so the report itself
+// has to be fetched separately once it's ready. Never shown to the submitting student
+// (AIS-02 acceptance criterion) — that's enforced server-side by the same teacher/Admin
+// gate on both routes, this UI only surfaces what the backend already restricts.
+export interface PlagiarismCheckAcceptedDto {
+  submissionId: string
+  scanId: string
+  status: string
+}
+
+export function triggerPlagiarismCheck(submissionId: string) {
+  return request<PlagiarismCheckAcceptedDto>(`/submissions/${submissionId}/plagiarism-check`, {
+    method: 'POST',
+  })
+}
+
+export interface PlagiarismReportStatusDto {
+  submissionId: string
+  status: string
+}
+
+export interface PlagiarismReportDto {
+  id: string
+  submissionId: string
+  similarityScore: number
+  copyleaksScanId: string | null
+  matchedSources: string[]
+  checkedAt: string
+}
+
+// PlagiarismReport is a discriminated union at the type level too: a resolved report
+// carries similarityScore, the still-pending stub (PlagiarismReportStatusDto) doesn't —
+// see isResolvedPlagiarismReport below for the runtime check that narrows this.
+export type PlagiarismReport = PlagiarismReportStatusDto | PlagiarismReportDto
+
+export function isResolvedPlagiarismReport(report: PlagiarismReport): report is PlagiarismReportDto {
+  return 'similarityScore' in report
+}
+
+export function getPlagiarismReport(submissionId: string) {
+  return request<PlagiarismReport>(`/submissions/${submissionId}/plagiarism-report`)
+}
