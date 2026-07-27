@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { createAssignment, ApiError, type AssignmentType } from '@/lib/api'
+import { createAssignment, triggerAiDetection, ApiError, type AssignmentType } from '@/lib/api'
 
 // TWA-07 — a teacher creates code/quiz/essay/file-upload assignments, specifying type,
 // due date, and submission window. Backend: AssignmentsController.Create (already on main).
@@ -129,6 +129,83 @@ export function AssignmentsPage() {
           </form>
         </CardContent>
       </Card>
+
+      <AiDetectionCard />
     </div>
+  )
+}
+
+// AIS-05 — a teacher checks a single submission for AI-generated content via Pangram.
+// This app has no "list submissions for grading" endpoint yet (AssignmentsController only
+// exposes per-submission routes), so the teacher identifies the submission by id here,
+// same as the subjectId/GUID input above — once a submissions list exists elsewhere in
+// the app this card's input can be replaced with a per-row action.
+function AiDetectionCard() {
+  const [submissionId, setSubmissionId] = useState('')
+  const [score, setScore] = useState<number | null>(null)
+  const [checkedAt, setCheckedAt] = useState<string | null>(null)
+  const [detectionError, setDetectionError] = useState<string | null>(null)
+
+  const detectMutation = useMutation({
+    mutationFn: triggerAiDetection,
+    onSuccess: (report) => {
+      setDetectionError(null)
+      setScore(report.aiLikelihoodScore)
+      setCheckedAt(report.checkedAt)
+    },
+    onError: (err) => {
+      setScore(null)
+      setCheckedAt(null)
+      setDetectionError(
+        err instanceof ApiError ? `Failed to run AI-content detection: ${err.message || err.status}` : 'Failed to run AI-content detection.',
+      )
+    },
+  })
+
+  const canCheck = Boolean(submissionId.trim()) && !detectMutation.isPending
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>AI-content likelihood</CardTitle>
+        <CardDescription>
+          AIS-05 — scores a submission for likely AI-generated content via Pangram. Results shown here
+          are not shared with the submitting student.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <label className="text-sm text-muted-foreground">Submission ID</label>
+        <input
+          className="rounded-md border px-3 py-2 text-sm"
+          placeholder="Submission ID (GUID)"
+          value={submissionId}
+          onChange={(e) => setSubmissionId(e.target.value)}
+        />
+
+        <Button type="button" disabled={!canCheck} onClick={() => detectMutation.mutate(submissionId)}>
+          {detectMutation.isPending ? 'Checking…' : 'Check AI-content likelihood'}
+        </Button>
+
+        {detectionError && <p className="text-sm text-destructive">{detectionError}</p>}
+
+        {score !== null && (
+          <div className="rounded-md border p-3 text-sm">
+            <p className="font-medium">AI-likelihood signal: {Math.round(score * 100)}%</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              This is one signal among several — not proof, and never a standalone misconduct verdict.
+              AI-detection tools carry a documented false-positive bias against non-native English
+              writers, so weigh this alongside the student's submission history and other evidence
+              before drawing any conclusion.
+            </p>
+            {checkedAt && (
+              <p className="mt-2 text-xs text-muted-foreground">Checked {new Date(checkedAt).toLocaleString()}.</p>
+            )}
+            <p className="mt-2 text-xs text-muted-foreground">
+              Visible to teachers/admins only — not shown to the submitting student.
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
