@@ -6,6 +6,7 @@ import { LoginPage } from '@/pages/LoginPage'
 import { TimetablePage } from '@/pages/TimetablePage'
 import { EventsPage } from '@/pages/EventsPage'
 import { ApproveMarksPage } from '@/pages/ApproveMarksPage'
+import { WhitelistRequestsPage } from '@/pages/WhitelistRequestsPage'
 import { ReportsPage } from '@/pages/ReportsPage'
 import { ExternalMarksPage } from '@/pages/ExternalMarksPage'
 import { AttendancePage } from '@/pages/AttendancePage'
@@ -70,6 +71,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           <Link to="/external-marks">External Marks</Link>
           <Link to="/marks">Marks</Link>
           <Link to="/approve-marks">Approve Marks</Link>
+          <Link to="/whitelist-requests">Whitelist Requests</Link>
           <Link to="/messages">Messages</Link>
           <Link to="/assignments">Assignments</Link>
           <Link to="/materials">Materials</Link>
@@ -179,6 +181,16 @@ function App() {
               <RequireAuth>
                 <Shell>
                   <ApproveMarksPage />
+                </Shell>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/whitelist-requests"
+            element={
+              <RequireAuth>
+                <Shell>
+                  <WhitelistRequestsPage />
                 </Shell>
               </RequireAuth>
             }
