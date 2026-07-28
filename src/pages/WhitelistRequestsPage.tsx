@@ -1,7 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { approveWhitelistRequest, getPendingWhitelistRequests, ApiError } from '@/lib/api'
+import {
+  addEngineeringDefaultSites,
+  approveWhitelistRequest,
+  getPendingWhitelistRequests,
+  ApiError,
+} from '@/lib/api'
 
 const PENDING_WHITELIST_REQUESTS_KEY = ['whitelist', 'requests', 'pending']
 
@@ -21,10 +26,46 @@ export function WhitelistRequestsPage() {
     },
   })
 
+  const addDefaultsMutation = useMutation({
+    mutationFn: addEngineeringDefaultSites,
+  })
+
   const forbidden = pending.isError && pending.error instanceof ApiError && pending.error.status === 403
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6 p-8">
+      <Card>
+        <CardHeader>
+          <CardTitle>Engineering site defaults</CardTitle>
+          <CardDescription>
+            Pre-approve a curated list of engineering/CS reference sites (GitHub, Stack
+            Overflow, MDN, and others) for your college in one click, instead of waiting for
+            students to request each one individually (SDA-03).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={() => addDefaultsMutation.mutate()} disabled={addDefaultsMutation.isPending}>
+            Add engineering sites
+          </Button>
+
+          {addDefaultsMutation.isSuccess && (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Added {addDefaultsMutation.data.added.length} site
+              {addDefaultsMutation.data.added.length === 1 ? '' : 's'}, {addDefaultsMutation.data.alreadyWhitelisted.length}{' '}
+              already on the whitelist.
+            </p>
+          )}
+
+          {addDefaultsMutation.isError && (
+            <p className="mt-3 text-sm text-destructive">
+              {addDefaultsMutation.error instanceof ApiError && addDefaultsMutation.error.status === 403
+                ? "You don't hold permission to approve whitelist requests."
+                : 'Failed to add the default sites.'}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Whitelist requests</CardTitle>

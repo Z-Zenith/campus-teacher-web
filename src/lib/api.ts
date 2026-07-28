@@ -332,6 +332,20 @@ export function approveWhitelistRequest(id: string) {
   })
 }
 
+// SDA-03 — bulk-approve a curated list of engineering/CS reference sites for the caller's
+// college in one call, bypassing the one-at-a-time request/approve flow above since these
+// are pre-vetted. Backend: BrowsingController.cs (POST /whitelist/defaults/engineering).
+export interface AddDefaultSitesResponse {
+  added: { id: string; url: string; approvedAt: string }[]
+  alreadyWhitelisted: string[]
+}
+
+export function addEngineeringDefaultSites() {
+  return request<AddDefaultSitesResponse>('/whitelist/defaults/engineering', {
+    method: 'POST',
+  })
+}
+
 // DMS-01 / TWA-18 — thin adapters from the shared Direct Messaging package's
 // embedder callbacks (Result<T, DmsError>) onto this app's fetch client
 // (which throws ApiError). DMS owns no persistence or auth of its own; this
