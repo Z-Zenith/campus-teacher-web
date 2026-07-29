@@ -27,6 +27,12 @@ export function NotesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [currentNote, setCurrentNote] = useState<Note | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+
+  const filteredNotes = useMemo(
+    () => notes.filter((note) => note.title.toLowerCase().includes(search.trim().toLowerCase())),
+    [notes, search]
+  )
 
   const user: UserContext | null = useMemo(() => {
     if (!userId) return null
@@ -54,6 +60,9 @@ export function NotesPage() {
   const selectNote = async (id: string | null) => {
     setSelectedId(id)
     setError(null)
+    // Clears any active filter so a note navigated to via a wikilink click (which may not
+    // match the current search term) is actually visible in the sidebar afterward.
+    setSearch('')
     if (id === null || !user) {
       setCurrentNote(null)
       return
@@ -79,11 +88,17 @@ export function NotesPage() {
           {error && <p className="mb-4 text-sm text-destructive">{error}</p>}
           <div className="grid grid-cols-1 gap-6 md:grid-cols-[240px_1fr]">
             <div className="border-r pr-4">
-              <Button className="mb-4 w-full" onClick={() => selectNote(null)}>
+              <Button className="mb-2 w-full" onClick={() => selectNote(null)}>
                 New note
               </Button>
+              <input
+                className="mb-3 w-full rounded-md border px-3 py-2 text-sm"
+                placeholder="Search notes…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
               <ul className="space-y-1">
-                {notes.map((note) => (
+                {filteredNotes.map((note) => (
                   <li key={note.id}>
                     <button
                       type="button"
@@ -93,11 +108,22 @@ export function NotesPage() {
                         selectedId === note.id && 'bg-accent font-medium'
                       )}
                     >
-                      {note.title}
+                      <span className="block truncate">{note.title}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {new Date(note.updatedAt).toLocaleString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        })}
+                      </span>
                     </button>
                   </li>
                 ))}
                 {notes.length === 0 && <li className="text-sm text-muted-foreground">No notes yet.</li>}
+                {notes.length > 0 && filteredNotes.length === 0 && (
+                  <li className="text-sm text-muted-foreground">No notes match.</li>
+                )}
               </ul>
             </div>
             <NotesEditor
@@ -120,7 +146,8 @@ export function NotesPage() {
               }}
               onResolveLink={(toNoteId) => notesGet(toNoteId, user.userId)}
               onListBacklinks={(toNoteId) => notesBacklinks(toNoteId, user.userId)}
-              imageSearch={{ user, enabled: true, onSearch: searchImages, onUploadImage: uploadImage }}
+              imageSearch={{ enabled: true, onSearch: searchImages, onUploadImage: uploadImage }}
+              onNavigateToNote={(noteId) => selectNote(noteId)}
             />
           </div>
         </CardContent>
