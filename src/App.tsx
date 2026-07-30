@@ -62,21 +62,24 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-svh">
       <nav className="flex items-center justify-between border-b px-8 py-4">
-        <div className="flex gap-6 text-sm font-medium">
-          <Link to="/dashboard">Dashboard</Link>
-          <Link to="/timetable">Timetable</Link>
-          <Link to="/attendance">Attendance</Link>
-          <Link to="/events">Events</Link>
-          <Link to="/reports">Report</Link>
-          <Link to="/external-marks">External Marks</Link>
-          <Link to="/marks">Marks</Link>
-          <Link to="/approve-marks">Approve Marks</Link>
-          <Link to="/whitelist-requests">Whitelist Requests</Link>
-          <Link to="/messages">Messages</Link>
-          <Link to="/assignments">Assignments</Link>
-          <Link to="/materials">Materials</Link>
-          <Link to="/community">Community</Link>
-          <Link to="/notes">Notes</Link>
+        <div className="flex items-center gap-6">
+          <img src="/logo.png" alt="Teacher Portal" className="h-8 w-8" />
+          <div className="flex gap-6 text-sm font-medium">
+            <Link to="/dashboard">Dashboard</Link>
+            <Link to="/timetable">Timetable</Link>
+            <Link to="/attendance">Attendance</Link>
+            <Link to="/events">Events</Link>
+            <Link to="/reports">Report</Link>
+            <Link to="/external-marks">External Marks</Link>
+            <Link to="/marks">Marks</Link>
+            <Link to="/approve-marks">Approve Marks</Link>
+            <Link to="/whitelist-requests">Whitelist Requests</Link>
+            <Link to="/messages">Messages</Link>
+            <Link to="/assignments">Assignments</Link>
+            <Link to="/materials">Materials</Link>
+            <Link to="/community">Community</Link>
+            <Link to="/notes">Notes</Link>
+          </div>
         </div>
         <div className="flex items-center gap-4">
           <SectionSwitcher />
