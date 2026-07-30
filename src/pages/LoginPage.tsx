@@ -33,7 +33,8 @@ export function LoginPage() {
     <div className="mx-auto flex min-h-svh max-w-sm flex-col justify-center p-8">
       <Card>
         <CardHeader>
-          <CardTitle>Teacher Web App — Sign in</CardTitle>
+          <img src="/logo.png" alt="" className="mx-auto mb-2 h-12 w-12" />
+          <CardTitle className="text-center">Teacher Web App — Sign in</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="flex flex-col gap-3">
