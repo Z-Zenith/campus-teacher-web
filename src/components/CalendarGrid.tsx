@@ -15,6 +15,16 @@ function slotStartHour(slot: TimetableSlotDto) {
   return Number(slot.startTime.split(':')[0])
 }
 
+// #15 — hour is only used to bucket slots into a display row; it is not unique per slot.
+// Two legitimately-scheduled sessions can share an hour bucket (e.g. sub-hour periods at
+// 09:00 and 09:50), so a cell must hold every slot for its (dayOfWeek, hour), not just one.
+// Sort by exact startTime so stacked sessions render in chronological order within the cell.
+export function slotsForCell(slots: TimetableSlotDto[], dayOfWeek: number, hour: number): TimetableSlotDto[] {
+  return slots
+    .filter((s) => s.dayOfWeek === dayOfWeek && slotStartHour(s) === hour)
+    .sort((a, b) => a.startTime.localeCompare(b.startTime))
+}
+
 export function computeHourRange(slots: TimetableSlotDto[]): number[] {
   const starts = slots.map(slotStartHour).filter((h) => Number.isFinite(h))
   const minHour = Math.max(0, Math.min(DEFAULT_MIN_HOUR, ...starts))
@@ -51,17 +61,18 @@ export function CalendarGrid({ slots, onSlotClick }: CalendarGridProps) {
             </div>
             {DAYS.map((_, dayIndex) => {
               const dayOfWeek = dayIndex + 1
-              const slot = slots.find((s) => s.dayOfWeek === dayOfWeek && slotStartHour(s) === hour)
+              const cellSlots = slotsForCell(slots, dayOfWeek, hour)
               return (
                 <div
                   key={`${hour}-${dayOfWeek}`}
-                  className="min-h-16 border-b border-r p-1 last:border-r-0"
+                  className="flex min-h-16 flex-col gap-1 border-b border-r p-1 last:border-r-0"
                 >
-                  {slot && (
+                  {cellSlots.map((slot) => (
                     <button
+                      key={slot.id}
                       type="button"
                       onClick={() => onSlotClick?.(slot)}
-                      className={`h-full w-full rounded-md p-2 text-left text-xs ${
+                      className={`w-full rounded-md p-2 text-left text-xs ${
                         slot.manuallyEdited ? 'bg-amber-500/20 hover:bg-amber-500/30' : 'bg-primary/15 hover:bg-primary/25'
                       } ${onSlotClick ? 'cursor-pointer' : 'cursor-default'}`}
                     >
@@ -69,7 +80,7 @@ export function CalendarGrid({ slots, onSlotClick }: CalendarGridProps) {
                       <div className="text-muted-foreground">{slot.sectionName}</div>
                       {slot.room && <div className="text-muted-foreground">{slot.room}</div>}
                     </button>
-                  )}
+                  ))}
                 </div>
               )
             })}

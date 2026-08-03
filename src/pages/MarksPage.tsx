@@ -30,6 +30,10 @@ export function backendErrorMessage(err: unknown, fallback: string): string {
 export function MarksPage() {
   const [subjectId, setSubjectId] = useState('')
   const [assignmentId, setAssignmentId] = useState('')
+  // #14 — keyed by studentId alone, an unsaved draft for Subject A would still be read by
+  // valueFor() after switching to Subject B for the same student, silently masking Subject
+  // B's real, already-published mark. Namespace drafts by (subjectId, assignmentId,
+  // studentId) so a draft only ever applies to the subject/assignment it was typed under.
   const [draftMarks, setDraftMarks] = useState<Record<string, string>>({})
   const [message, setMessage] = useState<string | null>(null)
   const queryClient = useQueryClient()
@@ -72,8 +76,10 @@ export function MarksPage() {
       ),
   })
 
+  const draftKey = (studentId: string) => `${subjectId}::${trimmedAssignmentId ?? ''}::${studentId}`
+
   const valueFor = (entry: InternalMarksRosterEntry) =>
-    draftMarks[entry.studentId] ?? (entry.marks !== null ? String(entry.marks) : '')
+    draftMarks[draftKey(entry.studentId)] ?? (entry.marks !== null ? String(entry.marks) : '')
 
   const handleSave = (entry: InternalMarksRosterEntry, publish: boolean) => {
     const raw = valueFor(entry)
@@ -162,7 +168,9 @@ export function MarksPage() {
                   inputMode="decimal"
                   placeholder="Marks"
                   value={valueFor(entry)}
-                  onChange={(e) => setDraftMarks((prev) => ({ ...prev, [entry.studentId]: e.target.value }))}
+                  onChange={(e) =>
+                    setDraftMarks((prev) => ({ ...prev, [draftKey(entry.studentId)]: e.target.value }))
+                  }
                 />
                 <Button variant="outline" onClick={() => handleSave(entry, false)} disabled={marksMutation.isPending}>
                   Save
