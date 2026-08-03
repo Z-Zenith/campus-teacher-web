@@ -34,5 +34,6 @@ a new version of any of these is cut.
 
 ## Code conventions
 
-Match the surrounding code's style and folder layout. Feature IDs referenced in this repo:
-TWA-01 through TWA-18 (see the architecture doc's Section 2/7 for the full feature list).
+Match the surrounding code's style and folder layout. Feature IDs referenced in this repo span
+TWA-01 through TWA-20 (not every ID in that range has a dedicated page here — see the
+architecture doc's Section 2/7 for the full, authoritative feature list).

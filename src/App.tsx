@@ -245,7 +245,7 @@ function App() {
               </RequireAuth>
             }
           />
-          <Route path="*" element={<Navigate to="/timetable" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </ActiveSectionProvider>
     </AuthProvider>
